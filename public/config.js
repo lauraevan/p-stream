@@ -1,10 +1,17 @@
+let tmdbReadToken = "";
+try {
+  tmdbReadToken = localStorage.getItem("pstream-tmdb-read-token") || "";
+} catch {
+  tmdbReadToken = "";
+}
+
 window.__CONFIG__ = {
   // The URL for the CORS proxy, the URL must NOT end with a slash!
   // If not specified, the onboarding will not allow a "default setup". The user will have to use the extension or set up a proxy themselves
   VITE_CORS_PROXY_URL: "",
 
-  // The READ API key to access TMDB
-  VITE_TMDB_READ_API_KEY: "",
+  // The READ API key to access TMDB. A local browser value can be set via /set-tmdb.html.
+  VITE_TMDB_READ_API_KEY: tmdbReadToken,
 
   // The DMCA email displayed in the footer, null to hide the DMCA link
   VITE_DMCA_EMAIL: null,
