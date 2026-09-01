@@ -1,6 +1,7 @@
 const { test, expect } = require("@playwright/test");
 
 test.setTimeout(120000);
+test.use({ channel: "chrome" });
 
 test("Synapse diagnostic source reaches real video playback", async ({ page }) => {
   const consoleErrors = [];
@@ -28,6 +29,8 @@ test("Synapse diagnostic source reaches real video playback", async ({ page }) =
     { waitUntil: "domcontentloaded", timeout: 60000 },
   );
 
+  console.log("USER_AGENT", await page.evaluate(() => navigator.userAgent));
+
   await page.waitForSelector("video", { timeout: 60000 });
 
   const initial = await page.locator("video").evaluate((video) => ({
@@ -37,6 +40,8 @@ test("Synapse diagnostic source reaches real video playback", async ({ page }) =
     currentSrc: video.currentSrc,
     src: video.src,
     paused: video.paused,
+    h264: video.canPlayType('video/mp4; codecs="avc1.42E01E"'),
+    aac: video.canPlayType('audio/mp4; codecs="mp4a.40.2"'),
   }));
   console.log("INITIAL_VIDEO_STATE", JSON.stringify(initial));
 
