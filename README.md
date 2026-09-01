@@ -1,11 +1,13 @@
-> [!WARNING]
-> This project is no longer maintained.
-> Due to legal pressure, I have to stop the project.
-> Thanks to everyone who contributed and supported the project!
+> [!NOTE]
+> Synapse Player is currently based on the P-Stream codebase while we build out the Synapse-specific player experience.
 
-# P-Stream
+# Synapse Player
 
-[![P-Stream Image](.github/P-Stream.png)](https://p-stream.github.io/docs/)
+A Synapse-focused media player fork built on the P-Stream foundation.
+
+## Upstream
+
+This project originated from P-Stream. The original project is no longer maintained due to legal pressure, but its historical documentation and supporting repositories are still useful references for development.
 
 ## Quick Deploy
 
@@ -13,9 +15,9 @@
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/p-stream/p-stream)
 
-**NOTE: To self-host, more setup is required. Check the [docs](https://p-stream.github.io/docs/) to properly set up!!!!**
+**NOTE: To self-host, more setup is required. Check the [upstream docs](https://p-stream.github.io/docs/) for the original setup information.**
 
-## Links And Resources
+## Upstream Links And Resources
 
 | Service       | Link                                            | Source Code                                            |
 | ------------- | ----------------------------------------------- | ------------------------------------------------------ |
@@ -26,41 +28,26 @@
 | Frontend      | [P-Stream](https://docs.pstream.mov/instances)  | [source code](https://github.com/p-stream/p-stream)    |
 | Weblate       | [weblate](https://weblate.pstream.mov)          |                                                        |
 
-**_I provide these if you are not able to host yourself, though I do encourage hosting the frontend._**
-
-## Referrers
-
-- [FMHY (Voted as #1 streaming site of 2024, 2025)](https://fmhy.net)
-
 ## Running Locally
 
-Type the following commands into your terminal / command line to run P-Stream locally
+Use the standard project commands:
 
 ```bash
-git clone https://github.com/p-stream/p-stream.git
-cd smov
-git pull
 pnpm install
 pnpm run dev
 ```
 
-Then you can visit the local instance [here](http://localhost:5173) or, at local host on port 5173.
+Then open the local Vite instance, normally at http://localhost:5173.
 
-## Updating a P-Stream Instance
+## Updating From Upstream
 
-To update a P-Stream instance you can type the below commands into a terminal at the root of your project.
+If you intentionally want to pull changes from the original P-Stream repository, add it as an upstream remote and merge carefully so Synapse-specific work is preserved.
 
 ```bash
 git remote add upstream https://github.com/p-stream/p-stream.git
-git fetch upstream # Grab the contents of the new remote source
-git checkout <YOUR_MAIN_BRANCH>  # Most likely this would be `origin/production`
+git fetch upstream
+git checkout production
 git merge upstream/production
-# * Fix any conflicts present during merge *
-git add .  # Add all changes made during merge and conflict fixing
-git commit -m "Update p-stream instance (merge upstream/production)"
-git push  # Push to YOUR repository
 ```
 
-## Contact Me / Discord
-
-[Discord](https://fluxer.gg/VLEQLVSM)
+Resolve any conflicts before committing and pushing.
