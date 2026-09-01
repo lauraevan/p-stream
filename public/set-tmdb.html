@@ -34,6 +34,18 @@
       const key = "pstream-tmdb-read-token";
       const input = document.getElementById("token");
       const status = document.getElementById("status");
+      const params = new URLSearchParams(window.location.search);
+      const requestedReturn = params.get("return");
+      let returnUrl = "./";
+
+      try {
+        if (requestedReturn) {
+          const candidate = new URL(requestedReturn, window.location.href);
+          if (candidate.origin === window.location.origin) returnUrl = candidate.href;
+        }
+      } catch {
+        returnUrl = "./";
+      }
 
       try {
         if (localStorage.getItem(key)) status.textContent = "A TMDB token is already saved in this browser.";
@@ -49,7 +61,7 @@
         }
         try {
           localStorage.setItem(key, value);
-          window.location.href = "./";
+          window.location.href = returnUrl;
         } catch {
           status.textContent = "Could not save the token in browser storage.";
         }
