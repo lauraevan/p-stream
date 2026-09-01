@@ -2,7 +2,7 @@ FROM node:20-alpine as build
 WORKDIR /app
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
+RUN apk add --no-cache git && corepack enable
 
 COPY package.json ./
 COPY pnpm-lock.yaml ./
