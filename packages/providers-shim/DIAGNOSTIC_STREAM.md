@@ -1,1 +1,0 @@
-Diagnostic stream notes.
