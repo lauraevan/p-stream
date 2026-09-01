@@ -80,5 +80,7 @@ export async function singularProxiedFetch<T>(
 }
 
 export function proxiedFetch<T>(url: string, ops: P<T>[1] = {}): R<T> {
-  return singularProxiedFetch<T>(getLoadbalancedProxyUrl(), url, ops);
+  const proxyUrl = getLoadbalancedProxyUrl();
+  if (!proxyUrl) return mwFetch<T>(url, ops);
+  return singularProxiedFetch<T>(proxyUrl, url, ops);
 }
