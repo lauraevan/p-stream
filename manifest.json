@@ -1,12 +1,12 @@
 {
-  "name": "P-Stream",
-  "short_name": "P-Stream",
+  "name": "Synapse Player",
+  "short_name": "Synapse Player",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#120f1d",
   "lang": "en",
   "scope": "/",
-  "description": "Watch your favorite shows and movies for free with no ads ever! (っ'ヮ'c)",
+  "description": "Synapse Player",
   "theme_color": "#120f1d",
   "icons": [
     {
