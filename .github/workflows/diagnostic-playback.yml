@@ -33,8 +33,11 @@ jobs:
       - name: Build app
         run: pnpm run build
 
+      - name: Install Playwright test harness
+        run: pnpm add -D @playwright/test@1.55.0 --ignore-workspace-root-check
+
       - name: Install Playwright Chromium
-        run: npx -y playwright@1.55.0 install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium
 
       - name: Start preview
         run: |
@@ -49,7 +52,7 @@ jobs:
           exit 1
 
       - name: Verify video actually advances
-        run: npx -y @playwright/test@1.55.0 test e2e/diagnostic-playback.spec.js --reporter=line
+        run: pnpm exec playwright test e2e/diagnostic-playback.spec.js --reporter=line
 
       - name: Preview log
         if: always()
