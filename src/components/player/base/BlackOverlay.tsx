@@ -5,7 +5,7 @@ export function BlackOverlay(props: { show?: boolean }) {
     <Transition
       animation="fade"
       show={props.show}
-      className="absolute inset-0 w-full h-full bg-black bg-opacity-20 pointer-events-none"
+      className="pointer-events-none absolute inset-0 h-full w-full bg-black/10"
     />
   );
 }
