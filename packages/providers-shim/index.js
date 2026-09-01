@@ -11,6 +11,9 @@ export class NotFoundError extends Error {
   }
 }
 
+const DIAGNOSTIC_HLS_URL =
+  "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
+
 const LANGUAGE_CODES = {
   english: "en",
   spanish: "es",
@@ -181,6 +184,14 @@ function appendMediaQuery(endpoint, media) {
 }
 
 async function resolveConfiguredSource(source, media, fetcher) {
+  if (source.diagnostic) {
+    return {
+      type: "hls",
+      playlist: DIAGNOSTIC_HLS_URL,
+      captions: [],
+    };
+  }
+
   if (!source.endpoint) {
     throw new Error("No authorized provider endpoint configured");
   }
@@ -219,13 +230,14 @@ export function makeProviders(options = {}) {
       ? configured
       : [
           {
-            id: "provider-setup",
-            name: "Provider setup",
+            id: "synapse-diagnostic",
+            name: "Synapse Test Stream (diagnostic)",
             endpoint: "",
-            method: "POST",
+            method: "GET",
             headers: {},
             rank: 0,
             disabled: false,
+            diagnostic: true,
           },
         ];
 
