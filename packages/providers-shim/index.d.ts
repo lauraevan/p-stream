@@ -77,7 +77,25 @@ export type FullScraperEvents = {
   }) => void;
 };
 
-export type Fetcher = (url: string, ops: any) => Promise<any>;
+export type Fetcher = (url: string, ops?: any) => Promise<any>;
+
+export type ConfiguredProviderSource = {
+  id: string;
+  name: string;
+  endpoint: string;
+  method?: "GET" | "POST";
+  headers?: Record<string, string>;
+  rank?: number;
+  disabled?: boolean;
+};
+
+export type ProviderOptions = {
+  fetcher?: Fetcher;
+  proxiedFetcher?: Fetcher;
+  target?: string;
+  consistentIpForRequests?: boolean;
+  sources?: ConfiguredProviderSource[];
+};
 
 export declare class NotFoundError extends Error {
   constructor(message?: string);
@@ -107,4 +125,4 @@ export type ProviderController = {
 
 export type ProviderControls = ProviderController;
 
-export declare function makeProviders(options?: any): ProviderController;
+export declare function makeProviders(options?: ProviderOptions): ProviderController;
