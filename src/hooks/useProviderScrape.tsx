@@ -8,6 +8,12 @@ import { getProviders } from "@/backend/providers/providers";
 import { getMediaKey } from "@/stores/player/slices/source";
 import { usePlayerStore } from "@/stores/player/store";
 import { usePreferencesStore } from "@/stores/preferences";
+import {
+  FAST_SOURCE_DELAYS,
+  isFastScrapeEnabled,
+  rankProviderIds,
+  recordProviderResult,
+} from "@/utils/providerPerformance";
 
 export interface ScrapingItems {
   id: string;
@@ -66,6 +72,29 @@ function useBaseScrape() {
     });
     setCurrentSource(id);
     lastId.current = id;
+  }, []);
+
+  const concurrentStartEvent = useCallback((id: ScraperEvent<"start">) => {
+    setSources((s) => {
+      if (s[id]) {
+        s[id].status = "pending";
+        s[id].percentage = 0;
+      }
+      return { ...s };
+    });
+    setCurrentSource(id);
+  }, []);
+
+  const setSourceWaiting = useCallback((id: string) => {
+    setSources((s) => {
+      if (s[id]) {
+        s[id].status = "waiting";
+        s[id].percentage = 0;
+        s[id].reason = undefined;
+        s[id].error = undefined;
+      }
+      return { ...s };
+    });
   }, []);
 
   const updateEvent = useCallback((evt: ScraperEvent<"update">) => {
@@ -127,6 +156,8 @@ function useBaseScrape() {
   return {
     initEvent,
     startEvent,
+    concurrentStartEvent,
+    setSourceWaiting,
     updateEvent,
     discoverEmbedsEvent,
     startScrape,
@@ -147,6 +178,8 @@ export function useScrape() {
     initEvent,
     getResult,
     startEvent,
+    concurrentStartEvent,
+    setSourceWaiting,
     startScrape,
   } = useBaseScrape();
 
@@ -210,6 +243,12 @@ export function useScrape() {
         baseSourceOrder = [...orderedSources, ...remainingSources];
       }
 
+      // Learn from successful/fast providers unless the user explicitly set
+      // their own order. Unknown providers keep their original relative order.
+      if (!enableSourceOrder) {
+        baseSourceOrder = rankProviderIds(baseSourceOrder);
+      }
+
       // If we have a last successful source and the feature is enabled, prioritize it
       // BUT only if we're not resuming from a specific source (to preserve custom order)
       if (
@@ -247,7 +286,206 @@ export function useScrape() {
         : undefined;
 
       startScrape();
+
+      // Fast path: hedge up to three top-ranked sources using the provider
+      // package's individual source/embed runners. Provider implementations and
+      // playback logic stay untouched. If every hedge misses (or hits a source
+      // shape that cannot be reproduced exactly), the original runAll path
+      // below remains the safety net.
+      const fastPathEnabled =
+        !startFromSourceId &&
+        !isExtensionActiveCached() &&
+        !window.__PSTREAM_DESKTOP__ &&
+        isFastScrapeEnabled() &&
+        filteredSourceOrder.length > 1;
+
+      if (fastPathEnabled) {
+        initEvent({
+          sourceIds: filteredSourceOrder,
+        } as ScraperEvent<"init">);
+
+        const raceSourceIds = filteredSourceOrder.slice(
+          0,
+          FAST_SOURCE_DELAYS.length,
+        );
+        let winnerChosen = false;
+
+        const runSingleSourceFast = async (
+          sourceId: string,
+        ): Promise<{
+          output: RunOutput | null;
+          recordResult: boolean | null;
+        }> => {
+          const attemptProviders = getProviders();
+          const sourceOutput = await attemptProviders.runSourceScraper({
+            id: sourceId,
+            media,
+          });
+
+          // Only accept the direct-stream case when its shape matches stock
+          // runAll closely: one direct stream and no embeds. Mixed or
+          // multi-direct outputs go through the untouched fallback so source
+          // semantics are preserved.
+          if (sourceOutput.stream?.length) {
+            if (
+              sourceOutput.stream.length === 1 &&
+              sourceOutput.embeds.length === 0
+            ) {
+              return {
+                output: {
+                  sourceId,
+                  stream: sourceOutput.stream[0],
+                },
+                recordResult: true,
+              };
+            }
+            return {
+              output: null,
+              recordResult: null,
+            };
+          }
+
+          if (sourceOutput.embeds.length === 0) {
+            return {
+              output: null,
+              recordResult: false,
+            };
+          }
+
+          let embedIds = attemptProviders.listEmbeds().map((embed) => embed.id);
+          if (filteredEmbedOrder?.length) {
+            const preferred = filteredEmbedOrder.filter((id) =>
+              embedIds.includes(id),
+            );
+            embedIds = [
+              ...preferred,
+              ...embedIds.filter((id) => !preferred.includes(id)),
+            ];
+          }
+
+          const embedRank = new Map(
+            embedIds.map((id, index) => [id, index] as const),
+          );
+          const sortedEmbeds = [...sourceOutput.embeds].sort(
+            (a, b) =>
+              (embedRank.get(a.embedId) ?? Number.MAX_SAFE_INTEGER) -
+              (embedRank.get(b.embedId) ?? Number.MAX_SAFE_INTEGER),
+          );
+
+          for (const embed of sortedEmbeds) {
+            try {
+              const embedOutput = await attemptProviders.runEmbedScraper({
+                id: embed.embedId,
+                url: embed.url,
+              });
+              if (embedOutput.stream?.[0]) {
+                return {
+                  output: {
+                    sourceId,
+                    embedId: embed.embedId,
+                    stream: embedOutput.stream[0],
+                  },
+                  recordResult: true,
+                };
+              }
+            } catch {
+              continue;
+            }
+          }
+
+          return {
+            output: null,
+            recordResult: false,
+          };
+        };
+
+        const fastOutput = await new Promise<RunOutput | null>((resolve) => {
+          let completed = 0;
+
+          const completeAttempt = () => {
+            completed += 1;
+            if (completed === raceSourceIds.length && !winnerChosen)
+              resolve(null);
+          };
+
+          raceSourceIds.forEach((sourceId, index) => {
+            window.setTimeout(async () => {
+              if (winnerChosen) {
+                completeAttempt();
+                return;
+              }
+
+              concurrentStartEvent(sourceId as ScraperEvent<"start">);
+              const startedAt = Date.now();
+
+              try {
+                const attempt = await runSingleSourceFast(sourceId);
+                const attemptOutput = attempt.output;
+                const elapsed = Date.now() - startedAt;
+                if (attempt.recordResult !== null) {
+                  recordProviderResult(sourceId, attempt.recordResult, elapsed);
+                }
+
+                if (attemptOutput && !winnerChosen) {
+                  winnerChosen = true;
+                  concurrentStartEvent(sourceId as ScraperEvent<"start">);
+                  updateEvent({
+                    id: sourceId,
+                    status: "success",
+                    percentage: 100,
+                  } as ScraperEvent<"update">);
+
+                  raceSourceIds
+                    .filter((id) => id !== sourceId)
+                    .forEach((id) => {
+                      setSourceWaiting(id);
+                    });
+
+                  resolve(attemptOutput);
+                } else if (!attemptOutput && !winnerChosen) {
+                  if (attempt.recordResult === null) {
+                    setSourceWaiting(sourceId);
+                  } else {
+                    updateEvent({
+                      id: sourceId,
+                      status: "notfound",
+                      percentage: 100,
+                    } as ScraperEvent<"update">);
+                  }
+                }
+              } catch (error) {
+                recordProviderResult(sourceId, false, Date.now() - startedAt);
+                if (!winnerChosen) {
+                  updateEvent({
+                    id: sourceId,
+                    status: "failure",
+                    percentage: 100,
+                    error,
+                  } as ScraperEvent<"update">);
+                }
+              } finally {
+                completeAttempt();
+              }
+            }, FAST_SOURCE_DELAYS[index] ?? 0);
+          });
+        });
+
+        if (fastOutput) {
+          try {
+            if (isExtensionActiveCached())
+              await prepareStream(fastOutput.stream);
+            return fastOutput;
+          } catch (error) {
+            console.warn(
+              "Fast source resolved but stream preparation failed; falling back",
+              error,
+            );
+          }
+        }
+      }
+
       const providers = getProviders();
+
       const output = await providers.runAll({
         media,
         sourceOrder: filteredSourceOrder,
@@ -266,6 +504,8 @@ export function useScrape() {
     [
       initEvent,
       startEvent,
+      concurrentStartEvent,
+      setSourceWaiting,
       updateEvent,
       discoverEmbedsEvent,
       getResult,
