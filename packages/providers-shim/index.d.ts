@@ -26,7 +26,7 @@ export type Stream =
   | {
       type: "file";
       qualities: Partial<
-        Record<Qualities, { type: string; url: string; [key: string]: any }>
+        Record<Qualities, { type: "mp4"; url: string; [key: string]: any }>
       >;
       captions: Caption[];
       headers?: Record<string, string>;
@@ -34,7 +34,7 @@ export type Stream =
     };
 
 export type RunOutput = {
-  sourceId?: string;
+  sourceId: string;
   embedId?: string;
   stream: Stream;
 };
