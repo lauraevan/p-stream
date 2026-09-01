@@ -4,7 +4,6 @@ import { Transition } from "@/components/utils/Transition";
 import { useBannerSize } from "@/stores/banner";
 import { BannerLocation } from "@/stores/banner/BannerLocation";
 import { usePlayerStore } from "@/stores/player/store";
-import { useSubtitleStore } from "@/stores/subtitles";
 
 export function TopControls(props: {
   show?: boolean;
@@ -13,9 +12,6 @@ export function TopControls(props: {
   const bannerSize = useBannerSize("player");
   const setHoveringAnyControls = usePlayerStore(
     (s) => s.setHoveringAnyControls,
-  );
-  const backgroundBlurEnabled = useSubtitleStore(
-    (s) => s.styling.backgroundBlurEnabled,
   );
 
   useEffect(() => {
@@ -26,23 +22,13 @@ export function TopControls(props: {
 
   return (
     <div className="w-full text-white">
-      {backgroundBlurEnabled && (
-        <Transition
-          animation="fade"
-          show={props.show}
-          style={{
-            top: `${bannerSize}px`,
-          }}
-          className="pointer-events-none flex justify-end pb-32 bg-gradient-to-b from-black to-transparent [margin-bottom:env(safe-area-inset-bottom)] transition-opacity duration-200 absolute top-0 w-full"
-        />
-      )}
       <div className="relative z-10">
         <BannerLocation location="player" />
       </div>
       <div
         onMouseOver={() => setHoveringAnyControls(true)}
         onMouseOut={() => setHoveringAnyControls(false)}
-        className="pointer-events-auto pl-[calc(2rem+env(safe-area-inset-left))] pr-[calc(2rem+env(safe-area-inset-right))] pt-6 absolute top-0 w-full"
+        className="pointer-events-auto absolute top-0 z-20 w-full px-[calc(0.75rem+env(safe-area-inset-left))] pt-[calc(0.75rem+env(safe-area-inset-top))] pr-[calc(0.75rem+env(safe-area-inset-right))] sm:px-[calc(1.25rem+env(safe-area-inset-left))] sm:pr-[calc(1.25rem+env(safe-area-inset-right))] sm:pt-[calc(1.25rem+env(safe-area-inset-top))]"
         style={{
           top: `${bannerSize}px`,
         }}

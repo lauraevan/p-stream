@@ -1,7 +1,6 @@
 import { ReactNode, useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { BrandPill } from "@/components/layout/BrandPill";
 import { Player } from "@/components/player";
 import { SkipSegmentButton } from "@/components/player/atoms/SkipSegmentButton";
 import { ThumbsFeedback } from "@/components/player/atoms/ThumbsFeedback";
@@ -40,6 +39,7 @@ export function PlayerPart(props: PlayerPartProps) {
   const meta = usePlayerStore((s) => s.meta);
 
   const inControl = !enabled || isHost;
+  const isPlaying = status === playerStatus.PLAYING;
 
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
   const isPWA = window.matchMedia("(display-mode: standalone)").matches;
@@ -78,7 +78,6 @@ export function PlayerPart(props: PlayerPartProps) {
     }, 1000);
   };
 
-  // State for thumbs feedback
   const [thumbsFeedbackData, setThumbsFeedbackData] = useState<{
     segment: SegmentData;
     skipTime: number;
@@ -101,14 +100,12 @@ export function PlayerPart(props: PlayerPartProps) {
     <Player.Container onLoad={props.onLoad} showingControls={showTargets}>
       {props.children}
       <PauseOverlay />
-      <Player.BlackOverlay
-        show={showTargets && status === playerStatus.PLAYING}
-      />
+      <Player.BlackOverlay show={showTargets && isPlaying} />
       <Player.EpisodesRouter onChange={props.onMetaChange} />
       <Player.SettingsRouter />
       <Player.SubtitleView controlsShown={showTargets} />
 
-      {status === playerStatus.PLAYING ? (
+      {isPlaying ? (
         <Player.CenterControls>
           <Player.LoadingSpinner />
           <Player.AutoPlayStart />
@@ -118,7 +115,7 @@ export function PlayerPart(props: PlayerPartProps) {
 
       <Player.CenterMobileControls
         className="text-white"
-        show={showTouchTargets && status === playerStatus.PLAYING}
+        show={showTouchTargets && isPlaying}
       >
         <Player.SkipBackward iconSizeClass="text-3xl" inControl={inControl} />
         <Player.Pause
@@ -130,40 +127,42 @@ export function PlayerPart(props: PlayerPartProps) {
 
       <div
         className={`absolute right-4 z-50 transition-all duration-300 ease-in-out ${
-          showTargets ? "top-16" : "top-1"
+          showTargets ? "top-20" : "top-2"
         }`}
       >
         <WatchPartyStatus />
       </div>
 
       <Player.TopControls show={showTargets}>
-        <div className="grid grid-cols-[1fr,auto] xl:grid-cols-3 items-center">
-          <div className="flex space-x-3 items-center">
+        <div className="mx-auto flex w-full max-w-[1600px] items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2 rounded-2xl border border-white/10 bg-black/60 p-1.5 pr-3 shadow-2xl backdrop-blur-xl">
             <Player.BackLink url={props.backUrl} />
-            <span className="text mx-3 text-type-secondary">/</span>
-            <Player.Title />
-
-            {isMobile && meta?.type === "show" && (
-              <span className="text-type-secondary text-sm whitespace-nowrap flex-shrink-0">
-                {t("media.episodeDisplay", {
-                  season: meta?.season?.number,
-                  episode: meta?.episode?.number,
-                })}
-              </span>
-            )}
-
-            <Player.InfoButton />
-
-            <Player.BookmarkButton />
+            <div className="flex min-w-0 items-center gap-2">
+              <Player.Title />
+              {meta?.type === "show" ? (
+                <span className="hidden shrink-0 rounded-md bg-white/10 px-2 py-1 text-[11px] font-semibold tracking-wide text-white/70 sm:inline-flex">
+                  {t("media.episodeDisplay", {
+                    season: meta?.season?.number,
+                    episode: meta?.episode?.number,
+                  })}
+                </span>
+              ) : null}
+            </div>
+            <div className="ml-1 hidden items-center gap-0.5 border-l border-white/10 pl-1 sm:flex">
+              <Player.InfoButton />
+              <Player.BookmarkButton />
+            </div>
           </div>
-          <div className="text-center hidden xl:flex justify-center items-center">
-            <Player.EpisodeTitle />
-          </div>
-          <div className="hidden lg:flex items-center justify-end">
-            <BrandPill />
-          </div>
-          <div className="flex lg:hidden items-center justify-end">
-            {status === playerStatus.PLAYING ? (
+
+          <div className="flex shrink-0 items-center gap-1 rounded-2xl border border-white/10 bg-black/60 p-1.5 shadow-2xl backdrop-blur-xl">
+            <div className="flex sm:hidden">
+              <Player.InfoButton />
+              <Player.BookmarkButton />
+            </div>
+            <div className="hidden max-w-[28vw] items-center px-2 text-sm text-white/70 xl:flex">
+              <Player.EpisodeTitle />
+            </div>
+            {isMobile && isPlaying ? (
               <>
                 <Player.Airplay />
                 <Player.Chromecast />
@@ -174,86 +173,72 @@ export function PlayerPart(props: PlayerPartProps) {
       </Player.TopControls>
 
       <Player.BottomControls show={showTargets}>
-        {status !== playerStatus.PLAYING && !manualSourceSelection && <Tips />}
-        <div className="flex items-center justify-center space-x-3 h-full">
-          {status === playerStatus.SCRAPING ? (
-            <ScrapingPartInterruptButton />
+        <div className="mx-auto w-full max-w-[1600px]">
+          {status !== playerStatus.PLAYING && !manualSourceSelection ? (
+            <div className="rounded-2xl border border-white/10 bg-black/65 px-4 py-3 shadow-2xl backdrop-blur-xl">
+              <Tips />
+              {status === playerStatus.SCRAPING ? (
+                <div className="mt-2 flex justify-center">
+                  <ScrapingPartInterruptButton />
+                </div>
+              ) : null}
+            </div>
           ) : null}
-          {status === playerStatus.PLAYING ? (
-            <>
-              {isMobile ? <Player.Time short /> : null}
-              <Player.ProgressBar />
-            </>
+
+          {isPlaying ? (
+            <div className="rounded-2xl border border-white/10 bg-black/65 px-2.5 pb-2 pt-1.5 shadow-2xl backdrop-blur-xl sm:px-3 sm:pb-2.5 sm:pt-2">
+              <div className="px-1 sm:px-1.5">
+                <Player.ProgressBar />
+              </div>
+
+              <div className="flex min-h-10 items-center justify-between gap-1" dir="ltr">
+                <div className="hidden items-center gap-0.5 lg:flex">
+                  <Player.Pause />
+                  <Player.SkipBackward inControl={inControl} />
+                  <Player.SkipForward inControl={inControl} />
+                  <div className="mx-1 h-5 w-px bg-white/10" />
+                  <Player.Volume />
+                  <div className="px-1 text-sm text-white/70">
+                    <Player.Time />
+                  </div>
+                </div>
+
+                <div className="flex items-center px-1 text-xs text-white/70 lg:hidden">
+                  <Player.Time short />
+                </div>
+
+                <div className="flex min-w-0 items-center justify-end gap-0.5">
+                  <Player.Episodes inControl={inControl} />
+                  <Player.SkipEpisodeButton
+                    inControl={inControl}
+                    onChange={props.onMetaChange}
+                  />
+                  <div className="hidden sm:flex">
+                    {!(isPWA && isIOS) ? <Player.Pip /> : null}
+                  </div>
+                  <div className="hidden md:flex">
+                    <Player.Airplay />
+                    <Player.Chromecast />
+                  </div>
+                  <Player.Captions />
+                  <Player.Settings />
+                  <div className="mx-0.5 h-5 w-px bg-white/10" />
+                  <div
+                    onTouchStart={handleTouchStart}
+                    onTouchEnd={handleTouchEnd}
+                    className="select-none touch-none"
+                    style={{ WebkitTapHighlightColor: "transparent" }}
+                  >
+                    {isShifting || isHoldingFullscreen ? (
+                      <Player.Widescreen />
+                    ) : (
+                      <Player.Fullscreen />
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
           ) : null}
-        </div>
-        <div className="hidden lg:flex justify-between" dir="ltr">
-          <Player.LeftSideControls>
-            {status === playerStatus.PLAYING ? (
-              <>
-                <Player.Pause />
-                <Player.SkipBackward inControl={inControl} />
-                <Player.SkipForward inControl={inControl} />
-                <Player.Volume />
-                <Player.Time />
-              </>
-            ) : null}
-          </Player.LeftSideControls>
-          <div className="flex items-center space-x-3">
-            <Player.Episodes inControl={inControl} />
-            <Player.SkipEpisodeButton
-              inControl={inControl}
-              onChange={props.onMetaChange}
-            />
-            {status === playerStatus.PLAYING ? (
-              <>
-                <Player.Pip />
-                <Player.Airplay />
-                <Player.Chromecast />
-              </>
-            ) : null}
-            {status === playerStatus.PLAYBACK_ERROR ||
-            status === playerStatus.PLAYING ? (
-              <Player.Captions />
-            ) : null}
-            <Player.Settings />
-            {isShifting || isHoldingFullscreen ? (
-              <Player.Widescreen />
-            ) : (
-              <Player.Fullscreen />
-            )}
-          </div>
-        </div>
-        <div className="grid grid-cols-[2.5rem,1fr,2.5rem] gap-3 lg:hidden">
-          <div />
-          <div className="flex justify-center space-x-3">
-            {/* Disable PiP for iOS PWA */}
-            {!(isPWA && isIOS) && status === playerStatus.PLAYING && (
-              <Player.Pip />
-            )}
-            <Player.Episodes inControl={inControl} />
-            {status === playerStatus.PLAYING ? (
-              <div className="hidden ssm:block">
-                <Player.Captions />
-              </div>
-            ) : null}
-            <Player.Settings />
-          </div>
-          <div>
-            {status === playerStatus.PLAYING && (
-              <div
-                onTouchStart={handleTouchStart}
-                onTouchEnd={handleTouchEnd}
-                className="select-none touch-none"
-                style={{ WebkitTapHighlightColor: "transparent" }}
-              >
-                {isHoldingFullscreen ? (
-                  <Player.Widescreen />
-                ) : (
-                  <Player.Fullscreen />
-                )}
-              </div>
-            )}
-          </div>
         </div>
       </Player.BottomControls>
 

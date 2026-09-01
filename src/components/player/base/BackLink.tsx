@@ -5,17 +5,17 @@ import { Icon, Icons } from "@/components/Icon";
 
 export function BackLink(props: { url: string }) {
   const { t } = useTranslation();
+  const label = t("player.back.default");
 
   return (
-    <div className="flex items-center">
-      <Link
-        to={props.url}
-        className="py-1 -my-1 px-2 -mx-2 tabbable rounded-lg flex items-center cursor-pointer text-type-secondary hover:text-white transition-colors duration-200 font-medium"
-      >
-        <Icon className="mr-2" icon={Icons.ARROW_LEFT} />
-        <span className="md:hidden">{t("player.back.short")}</span>
-        <span className="hidden md:block">{t("player.back.default")}</span>
-      </Link>
-    </div>
+    <Link
+      to={props.url}
+      aria-label={label}
+      title={label}
+      className="tabbable flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-black/35 text-white/80 backdrop-blur-xl transition-[background-color,color,transform] duration-150 hover:bg-white/10 hover:text-white active:scale-95"
+    >
+      <Icon className="text-lg" icon={Icons.ARROW_LEFT} />
+      <span className="sr-only">{label}</span>
+    </Link>
   );
 }

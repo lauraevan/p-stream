@@ -18,10 +18,10 @@ const SEGMENT_COLORS: Record<
   "intro" | "recap" | "credits" | "preview",
   string
 > = {
-  intro: "rgba(99, 102, 241, 0.75)", // indigo
-  recap: "rgba(245, 158, 11, 0.75)", // amber
-  credits: "rgba(34, 197, 94, 0.75)", // green
-  preview: "rgba(234, 179, 8, 0.75)", // yellow
+  intro: "rgba(99, 102, 241, 0.75)",
+  recap: "rgba(245, 158, 11, 0.75)",
+  credits: "rgba(34, 197, 94, 0.75)",
+  preview: "rgba(234, 179, 8, 0.75)",
 };
 
 function ThumbnailDisplay(props: { at: number; show: boolean }) {
@@ -48,7 +48,6 @@ function ThumbnailDisplay(props: { at: number; show: boolean }) {
     });
   }, [props.at]);
 
-  // Keep time label width consistent and avoid recomputing
   const formattedTime = useMemo(
     () => formatSeconds(Math.max(props.at, 0), durationExceedsHour(props.at)),
     [props.at],
@@ -59,8 +58,8 @@ function ThumbnailDisplay(props: { at: number; show: boolean }) {
   if (!props.show) return null;
 
   return (
-    <div className="flex flex-col items-center -translate-x-1/2 pointer-events-none">
-      <div className="w-screen flex justify-center">
+    <div className="pointer-events-none flex -translate-x-1/2 flex-col items-center">
+      <div className="flex w-screen justify-center">
         <div ref={ref}>
           <div
             style={{
@@ -70,10 +69,10 @@ function ThumbnailDisplay(props: { at: number; show: boolean }) {
             {currentThumbnail && (
               <img
                 src={currentThumbnail.data}
-                className="h-24 border rounded-xl border-gray-800 no-fade"
+                className="no-fade h-24 rounded-xl border border-white/10 bg-black/80 object-cover shadow-2xl"
               />
             )}
-            <p className="mt-1 mx-auto text-center border rounded-xl border-gray-800 px-3 py-1 backdrop-blur-lg bg-black bg-opacity-20 w-max">
+            <p className="mx-auto mt-1.5 w-max rounded-lg border border-white/10 bg-black/80 px-2.5 py-1 text-center text-xs font-medium text-white/90 shadow-lg backdrop-blur-xl">
               {formattedTime}
             </p>
           </div>
@@ -154,8 +153,8 @@ export function ProgressBar() {
   }, [setDraggingTime, duration, dragPercentage]);
 
   return (
-    <div className="w-full relative" dir="ltr">
-      <div className="top-0 absolute inset-x-0">
+    <div className="relative w-full" dir="ltr">
+      <div className="absolute inset-x-0 top-0">
         <div
           className="absolute bottom-0"
           style={{
@@ -171,7 +170,7 @@ export function ProgressBar() {
 
       <div className="w-full" ref={ref}>
         <div
-          className="group w-full h-8 flex items-center cursor-pointer"
+          className="group flex h-6 w-full cursor-pointer items-center"
           onMouseDown={dragMouseDown}
           onTouchStart={dragMouseDown}
           onMouseLeave={mouseLeave}
@@ -179,15 +178,14 @@ export function ProgressBar() {
         >
           <div
             className={[
-              "relative w-full h-1 bg-progress-background bg-opacity-25 rounded-full transition-[height] duration-100 group-hover:h-1.5",
-              dragging ? "!h-1.5" : "",
+              "relative h-[3px] w-full rounded-full bg-white/20 transition-[height] duration-150 group-hover:h-[5px]",
+              dragging ? "!h-[5px]" : "",
             ].join(" ")}
           >
-            {/* Skip segment markers */}
             {segmentRanges.map((range) => (
               <div
                 key={range.key}
-                className="absolute top-0 bottom-0 rounded-full pointer-events-none"
+                className="pointer-events-none absolute bottom-0 top-0 rounded-full"
                 style={{
                   left: `${range.left}%`,
                   width: `${range.width}%`,
@@ -195,17 +193,15 @@ export function ProgressBar() {
                 }}
               />
             ))}
-            {/* Pre-loaded content bar */}
             <div
-              className="absolute top-0 left-0 h-full rounded-full bg-progress-preloaded bg-opacity-50 flex justify-end items-center"
+              className="absolute left-0 top-0 flex h-full items-center justify-end rounded-full bg-white/25"
               style={{
                 width: `${(buffered / duration) * 100}%`,
               }}
             />
 
-            {/* Actual progress bar */}
             <div
-              className="absolute top-0 dir-neutral:left-0 h-full rounded-full bg-progress-filled flex justify-end items-center"
+              className="absolute top-0 flex h-full items-center justify-end rounded-full bg-progress-filled dir-neutral:left-0"
               style={{
                 width: `${
                   Math.max(
@@ -220,7 +216,7 @@ export function ProgressBar() {
             >
               <div
                 className={[
-                  "w-[1rem] min-w-[1rem] h-[1rem] rounded-full transform translate-x-1/2 scale-0 group-hover:scale-100 bg-white transition-[transform] duration-100",
+                  "h-2.5 min-h-2.5 w-2.5 min-w-2.5 translate-x-1/2 scale-0 rounded-full bg-white shadow transition-transform duration-150 group-hover:scale-100",
                   isSeeking ? "scale-100" : "",
                 ].join(" ")}
               />
