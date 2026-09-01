@@ -6,6 +6,10 @@ import {
 
 import { sendExtensionRequest } from "@/backend/extension/messaging";
 import { getApiToken, setApiToken } from "@/backend/helpers/providerApi";
+import {
+  recordProxyResult,
+  selectAdaptiveProxy,
+} from "@/utils/proxyPerformance";
 import { getM3U8ProxyUrls, getProxyUrls } from "@/utils/proxyUrls";
 
 import { convertBodyToObject, getBodyTypeFromBody } from "../extension/request";
@@ -23,7 +27,10 @@ function makeLoadbalancedList(getter: () => string[]) {
   };
 }
 
-export const getLoadbalancedProxyUrl = makeLoadbalancedList(getProxyUrls);
+export function getLoadbalancedProxyUrl(): string {
+  const proxyUrls = getProxyUrls();
+  return selectAdaptiveProxy(proxyUrls, "provider") ?? proxyUrls[0] ?? "";
+}
 function getEnabledM3U8ProxyUrls() {
   const allM3U8ProxyUrls = getM3U8ProxyUrls();
   const enabledProxies = localStorage.getItem("m3u8-proxy-enabled");
@@ -76,11 +83,23 @@ export function setupM3U8Proxy() {
 
 export function makeLoadBalancedSimpleProxyFetcher() {
   const fetcher: Fetcher = async (a, b) => {
+    const proxyUrl = getLoadbalancedProxyUrl();
     const currentFetcher = makeSimpleProxyFetcher(
-      getLoadbalancedProxyUrl(),
+      proxyUrl,
       fetchButWithApiTokens,
     );
-    return currentFetcher(a, b);
+    const startedAt = Date.now();
+
+    try {
+      const response = await currentFetcher(a, b);
+      if (proxyUrl)
+        recordProxyResult(proxyUrl, true, Date.now() - startedAt, "provider");
+      return response;
+    } catch (error) {
+      if (proxyUrl)
+        recordProxyResult(proxyUrl, false, Date.now() - startedAt, "provider");
+      throw error;
+    }
   };
   return fetcher;
 }
