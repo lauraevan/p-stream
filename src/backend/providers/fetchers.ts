@@ -7,10 +7,6 @@ import {
 
 import { sendExtensionRequest } from "@/backend/extension/messaging";
 import { getApiToken, setApiToken } from "@/backend/helpers/providerApi";
-import {
-  recordProxyResult,
-  selectAdaptiveProxy,
-} from "@/utils/proxyPerformance";
 import { getM3U8ProxyUrls, getProxyUrls } from "@/utils/proxyUrls";
 
 import { convertBodyToObject, getBodyTypeFromBody } from "../extension/request";
@@ -19,6 +15,7 @@ function makeLoadbalancedList(getter: () => string[]) {
   let listIndex = -1;
   return () => {
     const fetchers = getter();
+    if (fetchers.length === 0) return undefined;
     if (listIndex === -1 || listIndex >= fetchers.length) {
       listIndex = Math.floor(Math.random() * fetchers.length);
     }
@@ -28,10 +25,7 @@ function makeLoadbalancedList(getter: () => string[]) {
   };
 }
 
-export function getLoadbalancedProxyUrl(): string {
-  const proxyUrls = getProxyUrls();
-  return selectAdaptiveProxy(proxyUrls, "provider") ?? proxyUrls[0] ?? "";
-}
+export const getLoadbalancedProxyUrl = makeLoadbalancedList(getProxyUrls);
 function getEnabledM3U8ProxyUrls() {
   const allM3U8ProxyUrls = getM3U8ProxyUrls();
   const enabledProxies = localStorage.getItem("m3u8-proxy-enabled");
@@ -88,30 +82,16 @@ export function makeLoadBalancedSimpleProxyFetcher() {
   const fetcher: Fetcher = async (a, b) => {
     const proxyUrl = getLoadbalancedProxyUrl();
 
-    // A browser deployment can legitimately have no CORS proxy configured.
-    // Never hand an empty string to makeSimpleProxyFetcher because it creates
-    // an invalid URL and causes every proxy-backed provider to fail before the
-    // provider runner gets a chance to continue. Fall back to a normal browser
-    // request instead; providers that truly require a proxy will fail normally
-    // and the existing provider fallback flow can continue to the next source.
-    if (!proxyUrl) {
-      return directFetcher(a, b);
-    }
+    // Some browser deployments intentionally have no proxy configured. Do not
+    // pass an empty/undefined URL to the simple proxy fetcher; use the normal
+    // browser fetcher and let providers fail or continue through stock runAll.
+    if (!proxyUrl) return directFetcher(a, b);
 
     const currentFetcher = makeSimpleProxyFetcher(
       proxyUrl,
       fetchButWithApiTokens,
     );
-    const startedAt = Date.now();
-
-    try {
-      const response = await currentFetcher(a, b);
-      recordProxyResult(proxyUrl, true, Date.now() - startedAt, "provider");
-      return response;
-    } catch (error) {
-      recordProxyResult(proxyUrl, false, Date.now() - startedAt, "provider");
-      throw error;
-    }
+    return currentFetcher(a, b);
   };
   return fetcher;
 }
