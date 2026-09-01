@@ -104,19 +104,20 @@ export default defineConfig(({ mode }) => {
         },
       }),
       loadVersion(),
-      checker({
-        overlay: {
-          position: "tr",
-        },
-        typescript: true, // check typescript build errors in dev server
-        eslint: {
-          // check lint errors in dev server
-          lintCommand: "eslint --ext .tsx,.ts src",
-          dev: {
-            logLevel: ["error"],
+      mode !== "production" &&
+        checker({
+          overlay: {
+            position: "tr",
           },
-        },
-      }),
+          typescript: true, // check typescript build errors in dev server
+          eslint: {
+            // check lint errors in dev server
+            lintCommand: "eslint --ext .tsx,.ts src",
+            dev: {
+              logLevel: ["error"],
+            },
+          },
+        }),
       splitVendorChunkPlugin(),
       visualizer() as PluginOption,
     ],
