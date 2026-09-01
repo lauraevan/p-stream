@@ -5,6 +5,19 @@ try {
   tmdbReadToken = "";
 }
 
+// A fresh self-hosted install has no TMDB token yet. Instead of letting the
+// catalog boot into a broken/empty state, send the browser to the one-time
+// setup page and return to the original URL after saving.
+if (!tmdbReadToken && !window.location.pathname.endsWith("/set-tmdb.html")) {
+  const currentUrl = window.location.href;
+  const currentPath = window.location.pathname;
+  const lastSlash = currentPath.lastIndexOf("/");
+  const basePath = currentPath.slice(0, lastSlash + 1);
+  window.location.replace(
+    `${basePath}set-tmdb.html?return=${encodeURIComponent(currentUrl)}`,
+  );
+}
+
 window.__CONFIG__ = {
   // The URL for the CORS proxy, the URL must NOT end with a slash!
   // If not specified, the onboarding will not allow a "default setup". The user will have to use the extension or set up a proxy themselves
