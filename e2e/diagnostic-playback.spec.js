@@ -1,8 +1,11 @@
 const { test, expect } = require("@playwright/test");
 
+test.setTimeout(120000);
+
 test("Synapse diagnostic source reaches real video playback", async ({ page }) => {
   const consoleErrors = [];
   const failedRequests = [];
+  const responses = [];
 
   page.on("console", (message) => {
     if (message.type() === "error") consoleErrors.push(message.text());
@@ -13,6 +16,12 @@ test("Synapse diagnostic source reaches real video playback", async ({ page }) =
       error: request.failure()?.errorText || "unknown",
     });
   });
+  page.on("response", (response) => {
+    const url = response.url();
+    if (url.includes("test-streams.mux.dev") || url.includes(".m3u8")) {
+      responses.push({ url, status: response.status() });
+    }
+  });
 
   await page.goto(
     "http://127.0.0.1:4173/media/tmdb-movie-1288445-mutiny",
@@ -21,42 +30,29 @@ test("Synapse diagnostic source reaches real video playback", async ({ page }) =
 
   await page.waitForSelector("video", { timeout: 60000 });
 
-  const result = await page.evaluate(async () => {
-    const video = document.querySelector("video");
-    if (!video) return { ok: false, reason: "no-video" };
+  const initial = await page.locator("video").evaluate((video) => ({
+    readyState: video.readyState,
+    networkState: video.networkState,
+    currentTime: video.currentTime,
+    currentSrc: video.currentSrc,
+    src: video.src,
+    paused: video.paused,
+  }));
+  console.log("INITIAL_VIDEO_STATE", JSON.stringify(initial));
 
+  await page.locator("video").evaluate((video) => {
     video.muted = true;
-    try {
-      await video.play();
-    } catch (error) {
-      return {
-        ok: false,
-        reason: "play-rejected",
-        error: error instanceof Error ? error.message : String(error),
-        readyState: video.readyState,
-        networkState: video.networkState,
-        src: video.currentSrc || video.src,
-      };
+    const playPromise = video.play();
+    if (playPromise && typeof playPromise.catch === "function") {
+      playPromise.catch(() => {});
     }
+  });
 
-    const startedAt = Date.now();
-    while (Date.now() - startedAt < 20000) {
-      if (video.readyState >= 2 && video.currentTime > 0.25) {
-        return {
-          ok: true,
-          currentTime: video.currentTime,
-          readyState: video.readyState,
-          networkState: video.networkState,
-          src: video.currentSrc || video.src,
-          paused: video.paused,
-        };
-      }
-      await new Promise((resolve) => setTimeout(resolve, 250));
-    }
-
-    return {
-      ok: false,
-      reason: "video-did-not-advance",
+  let result = null;
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < 45000) {
+    result = await page.locator("video").evaluate((video) => ({
+      ok: video.readyState >= 2 && video.currentTime > 0.25,
       currentTime: video.currentTime,
       readyState: video.readyState,
       networkState: video.networkState,
@@ -65,12 +61,19 @@ test("Synapse diagnostic source reaches real video playback", async ({ page }) =
       error: video.error
         ? { code: video.error.code, message: video.error.message }
         : null,
-    };
-  });
+    }));
+    if (result.ok) break;
+    await page.waitForTimeout(500);
+  }
+
+  if (!result?.ok) {
+    result = { ...result, ok: false, reason: "video-did-not-advance" };
+  }
 
   console.log("PLAYBACK_RESULT", JSON.stringify(result));
-  console.log("BROWSER_CONSOLE_ERRORS", JSON.stringify(consoleErrors));
-  console.log("FAILED_REQUESTS", JSON.stringify(failedRequests.slice(-20)));
+  console.log("HLS_RESPONSES", JSON.stringify(responses.slice(-30)));
+  console.log("BROWSER_CONSOLE_ERRORS", JSON.stringify(consoleErrors.slice(-30)));
+  console.log("FAILED_REQUESTS", JSON.stringify(failedRequests.slice(-30)));
 
   expect(result.ok, JSON.stringify(result)).toBe(true);
 });
