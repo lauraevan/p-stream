@@ -1,6 +1,7 @@
 import {
   Fetcher,
   makeSimpleProxyFetcher,
+  makeStandardFetcher,
   setM3U8ProxyUrl,
 } from "@p-stream/providers";
 
@@ -82,8 +83,21 @@ export function setupM3U8Proxy() {
 }
 
 export function makeLoadBalancedSimpleProxyFetcher() {
+  const directFetcher = makeStandardFetcher(fetch);
+
   const fetcher: Fetcher = async (a, b) => {
     const proxyUrl = getLoadbalancedProxyUrl();
+
+    // A browser deployment can legitimately have no CORS proxy configured.
+    // Never hand an empty string to makeSimpleProxyFetcher because it creates
+    // an invalid URL and causes every proxy-backed provider to fail before the
+    // provider runner gets a chance to continue. Fall back to a normal browser
+    // request instead; providers that truly require a proxy will fail normally
+    // and the existing provider fallback flow can continue to the next source.
+    if (!proxyUrl) {
+      return directFetcher(a, b);
+    }
+
     const currentFetcher = makeSimpleProxyFetcher(
       proxyUrl,
       fetchButWithApiTokens,
@@ -92,12 +106,10 @@ export function makeLoadBalancedSimpleProxyFetcher() {
 
     try {
       const response = await currentFetcher(a, b);
-      if (proxyUrl)
-        recordProxyResult(proxyUrl, true, Date.now() - startedAt, "provider");
+      recordProxyResult(proxyUrl, true, Date.now() - startedAt, "provider");
       return response;
     } catch (error) {
-      if (proxyUrl)
-        recordProxyResult(proxyUrl, false, Date.now() - startedAt, "provider");
+      recordProxyResult(proxyUrl, false, Date.now() - startedAt, "provider");
       throw error;
     }
   };
