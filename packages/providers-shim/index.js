@@ -78,23 +78,222 @@ export function makeSimpleProxyFetcher(_proxyUrl, fetchImpl = globalThis.fetch) 
   return makeStandardFetcher(fetchImpl);
 }
 
-export function makeProviders() {
+function normalizeSourceConfig(input) {
+  if (!Array.isArray(input)) return [];
+  return input
+    .filter((source) => source && typeof source.id === "string")
+    .map((source, index) => ({
+      id: source.id,
+      name: source.name || source.id,
+      endpoint: typeof source.endpoint === "string" ? source.endpoint : "",
+      method: source.method === "GET" ? "GET" : "POST",
+      headers: source.headers && typeof source.headers === "object" ? source.headers : {},
+      rank: typeof source.rank === "number" ? source.rank : index,
+      disabled: Boolean(source.disabled),
+    }))
+    .filter((source) => !source.disabled);
+}
+
+function sourceMetadata(source) {
+  return {
+    id: source.id,
+    name: source.name,
+    rank: source.rank,
+    disabled: false,
+  };
+}
+
+function parseBody(body) {
+  if (body == null) return null;
+  if (typeof body === "string") {
+    if (!body.trim()) return null;
+    return JSON.parse(body);
+  }
+  return body;
+}
+
+function normalizeCaptions(captions) {
+  if (!Array.isArray(captions)) return [];
+  return captions
+    .filter((caption) => caption && caption.id && caption.language && caption.url)
+    .map((caption) => ({
+      ...caption,
+      hasCorsRestrictions: Boolean(caption.hasCorsRestrictions),
+    }));
+}
+
+function normalizeStream(payload) {
+  if (!payload) return null;
+  let candidate = payload.stream ?? payload;
+  if (Array.isArray(candidate)) candidate = candidate[0];
+  if (!candidate || typeof candidate !== "object") return null;
+
+  if (candidate.type === "hls") {
+    const playlist = candidate.playlist || candidate.url;
+    if (!playlist || typeof playlist !== "string") return null;
+    return {
+      type: "hls",
+      playlist,
+      captions: normalizeCaptions(candidate.captions),
+      headers: candidate.headers,
+      preferredHeaders: candidate.preferredHeaders,
+    };
+  }
+
+  if (candidate.type === "file" && candidate.qualities) {
+    const qualities = {};
+    Object.entries(candidate.qualities).forEach(([quality, value]) => {
+      if (!value || typeof value.url !== "string") return;
+      qualities[quality] = {
+        ...value,
+        type: "mp4",
+      };
+    });
+    if (Object.keys(qualities).length === 0) return null;
+    return {
+      type: "file",
+      qualities,
+      captions: normalizeCaptions(candidate.captions),
+      headers: candidate.headers,
+      preferredHeaders: candidate.preferredHeaders,
+    };
+  }
+
+  return null;
+}
+
+function appendMediaQuery(endpoint, media) {
+  const url = new URL(endpoint, globalThis.location?.href || "http://localhost");
+  Object.entries({
+    type: media?.type,
+    tmdbId: media?.tmdbId,
+    imdbId: media?.imdbId,
+    title: media?.title,
+    releaseYear: media?.releaseYear,
+    season: media?.season?.number,
+    episode: media?.episode?.number,
+  }).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      url.searchParams.set(key, String(value));
+    }
+  });
+  return url.toString();
+}
+
+async function resolveConfiguredSource(source, media, fetcher) {
+  if (!source.endpoint) {
+    throw new Error("No authorized provider endpoint configured");
+  }
+
+  const requestUrl =
+    source.method === "GET"
+      ? appendMediaQuery(source.endpoint, media)
+      : source.endpoint;
+
+  const response = await fetcher(requestUrl, {
+    method: source.method,
+    headers: {
+      accept: "application/json",
+      ...(source.method === "POST" ? { "content-type": "application/json" } : {}),
+      ...source.headers,
+    },
+    body: source.method === "POST" ? JSON.stringify({ media }) : undefined,
+    responseType: "json",
+  });
+
+  if (response.statusCode === 404 || response.statusCode === 204) return null;
+  if (response.statusCode >= 400) {
+    throw new Error(`Provider returned HTTP ${response.statusCode}`);
+  }
+
+  const payload = parseBody(response.body);
+  if (payload?.found === false) return null;
+  return normalizeStream(payload);
+}
+
+export function makeProviders(options = {}) {
+  const fetcher = options.fetcher || makeStandardFetcher();
+  const configured = normalizeSourceConfig(options.sources);
+  const sources =
+    configured.length > 0
+      ? configured
+      : [
+          {
+            id: "provider-setup",
+            name: "Provider setup",
+            endpoint: "",
+            method: "POST",
+            headers: {},
+            rank: 0,
+            disabled: false,
+          },
+        ];
+
+  async function runOne(source, media) {
+    const stream = await resolveConfiguredSource(source, media, fetcher);
+    if (!stream) throw new NotFoundError(`${source.name} found no stream`);
+    return stream;
+  }
+
   return {
     listSources() {
-      return [];
+      return sources.map(sourceMetadata);
     },
     listEmbeds() {
       return [];
     },
-    async runAll(options = {}) {
-      options.events?.init?.({ sourceIds: [] });
+    async runAll(runOptions = {}) {
+      const events = runOptions.events || {};
+      const requestedOrder = Array.isArray(runOptions.sourceOrder)
+        ? runOptions.sourceOrder
+        : sources.map((source) => source.id);
+      const orderedSources = requestedOrder
+        .map((id) => sources.find((source) => source.id === id))
+        .filter(Boolean);
+
+      events.init?.({ sourceIds: orderedSources.map((source) => source.id) });
+
+      for (const source of orderedSources) {
+        events.start?.(source.id);
+        events.update?.({
+          id: source.id,
+          status: "pending",
+          percentage: 15,
+        });
+
+        try {
+          const stream = await runOne(source, runOptions.media);
+          events.update?.({
+            id: source.id,
+            status: "success",
+            percentage: 100,
+          });
+          return {
+            sourceId: source.id,
+            stream,
+          };
+        } catch (error) {
+          const notFound = error instanceof NotFoundError;
+          events.update?.({
+            id: source.id,
+            status: notFound ? "notfound" : "failure",
+            reason: error instanceof Error ? error.message : String(error),
+            error,
+            percentage: 100,
+          });
+        }
+      }
+
       return null;
     },
-    async runSourceScraper() {
-      return { stream: [], embeds: [] };
+    async runSourceScraper({ id, media } = {}) {
+      const source = sources.find((item) => item.id === id);
+      if (!source) throw new NotFoundError(`Unknown source: ${id}`);
+      const stream = await runOne(source, media);
+      return { stream: [stream], embeds: [] };
     },
     async runEmbedScraper() {
-      return { stream: [] };
+      throw new NotFoundError("No embed resolver is configured");
     },
   };
 }
