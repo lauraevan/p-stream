@@ -4,6 +4,46 @@ export const targets = {
   NATIVE: "native",
 };
 
+export class NotFoundError extends Error {
+  constructor(message = "No provider result available") {
+    super(message);
+    this.name = "NotFoundError";
+  }
+}
+
+const LANGUAGE_CODES = {
+  english: "en",
+  spanish: "es",
+  french: "fr",
+  german: "de",
+  italian: "it",
+  portuguese: "pt",
+  japanese: "ja",
+  korean: "ko",
+  chinese: "zh",
+  arabic: "ar",
+  russian: "ru",
+  hindi: "hi",
+  dutch: "nl",
+  polish: "pl",
+  turkish: "tr",
+  swedish: "sv",
+  norwegian: "no",
+  danish: "da",
+  finnish: "fi",
+};
+
+export function labelToLanguageCode(label) {
+  if (typeof label !== "string") return null;
+  const normalized = label.trim().toLowerCase();
+  if (!normalized) return null;
+  if (LANGUAGE_CODES[normalized]) return LANGUAGE_CODES[normalized];
+  if (/^[a-z]{2,3}(?:-[a-z]{2})?$/.test(normalized)) {
+    return normalized.split("-")[0];
+  }
+  return null;
+}
+
 export function setM3U8ProxyUrl() {}
 
 function normalizeHeaders(headers) {
